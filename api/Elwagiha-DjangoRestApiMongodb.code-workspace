@@ -1,0 +1,17 @@
+{
+	"folders": [
+		{
+			"path": "../../../DjangoRestApiMongodb"
+		},
+		{
+			"path": "../.."
+		},
+		{
+			"path": "../../../elminassa-stats-front-end"
+		},
+		{
+			"path": "../../../habitat/habitatFrontEnd"
+		}
+	],
+	"settings": {}
+}
