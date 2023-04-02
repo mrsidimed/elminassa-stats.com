@@ -113,6 +113,9 @@ def create_ad(request):
 
     ad_model = {
 
+
+
+
         "title": request.POST['title'],
         "publisher": {
             "name": request.POST['publisherName'],
@@ -357,14 +360,23 @@ def getVisistsCountLast24Hours(request):
 
 
 @api_view(['GET'])
-def getUniqueVisitorsOfAllTime(request):
+def getUniqueVisitorsOfLast365Days(request):
 
 
-    cursor = statistics.distinct("id" , {"page": "map" }   )
+    lastyear = datetime.datetime.now() - datetime.timedelta(days=365)    
+ 
+    cursor = statistics.distinct("id" , {"page": "map"  ,  "visitDate" : { "$gt":  lastyear }}   )
 
     counter = len(list(cursor))
  
+    return JsonResponse({"uniqueVisitors": counter}, safe=False)
 
+
+@api_view(['GET'])
+def getUniqueVisitorsOfAllTime(request):
+    cursor = statistics.distinct("id" , {"page": "map" }   )
+    counter = len(list(cursor))
+ 
     return JsonResponse({"uniqueVisitors": counter}, safe=False)
 
 @api_view(['GET'])
@@ -389,14 +401,14 @@ def getUniqueVisitorsThatVisitedForTheFirstTimeEverInTheLast24Hours(request):
 @api_view(['GET'])
 def getUniqueVisitorsThatVisitedForTheFirstTimeEverInTheLast30Days(request):
 
+    last30Days = datetime.datetime.now() - datetime.timedelta(days=30)  
+    now = datetime.datetime.now()
 
-    cursor1 = statistics.distinct("id" , {"page": "map" }   ) # all time
-
+    cursor1 = statistics.distinct("id" , {"page": "map"  }   ) # all time
     counterAllTime = len(list(cursor1))
 
-    last30Days = datetime.datetime.now() - datetime.timedelta(days=30)    
 
-    cursor2 = statistics.distinct("id" , {"page": "map"  ,  "visitDate" : { "$lt":  last30Days } }   ) # all time minus 24 hours
+    cursor2 = statistics.distinct("id" , {"page": "map"  ,  "visitDate" : { "$lt":  last30Days } }   ) # all time minus 30 hours
 
     counterAllTimeMinus30Days = len(list(cursor2))
 
@@ -442,6 +454,7 @@ def getCitiesOfRegion(request):
 @api_view(['GET'])
 def getCountriesForLast24Hours(request):
 
+
     last24Hours = datetime.datetime.now() - datetime.timedelta(days=1)    
     cursor = statistics.distinct("country" , {"page": "map"  ,  "visitDate" : { "$gte":  last24Hours }  }   ) 
     json_ads = []
@@ -470,6 +483,37 @@ def getAllCountries(request):
 
 
 @api_view(['GET'])
+def getAllCountriesThatvisitedForFirstTimeInLastMonth(request):
+
+    dateOfStart = datetime.datetime.now() - datetime.timedelta(days=30)
+
+    cursor1 = statistics.distinct("country" , {"page": "map"  , "visitDate": {"$lte": dateOfStart} }  ) 
+    countries_list_except_last_month = []
+
+    for doc in cursor1:
+        if doc != "404" and doc != "Côte d'Ivoire":
+            retour = json.dumps(doc, default=str)
+            countries_list_except_last_month.append(json.loads(retour))
+
+
+    
+    cursor2 = statistics.distinct("country" , {"page": "map" }   ) 
+    countries_list_Alltime = []
+
+    for doc in cursor2:
+        if doc != "404" and doc != "Côte d'Ivoire":
+            retour = json.dumps(doc, default=str)
+            countries_list_Alltime.append(json.loads(retour))
+
+    
+    difference = set(countries_list_Alltime) - set(countries_list_except_last_month)
+    list_difference = list(difference)
+
+    
+    return JsonResponse({"countriesThatvisitedForFirstTimeInLastMonth": list_difference}, safe=False)
+
+
+@api_view(['GET'])
 def getUniqueVisitorsFromAndFromOutsideMauritania(request): # get unique visitors from and from outside Mauritania
 
     cursorMauritania = statistics.distinct("id" , {"page": "map" , "country": "Mauritania" }   )
@@ -488,6 +532,9 @@ def getUniqueVisitorsFromAndFromOutsideMauritania(request): # get unique visitor
     plt.bar( x , y ,  color = "purple")
 
     plt.ylabel("Visiteurs Uniques")
+
+    
+    
     
     for i in range(len(x)): 
         plt.text( i , y[i] ,  str(y[i]) +" (" +  str( float("{0:.1f}".format((y[i]/counterTotal) * 100)) )  + "%)" , ha="center" , va="bottom" )
@@ -805,10 +852,12 @@ def getUniqueVisitorsPerRegion(request):
     return JsonResponse(list_regions_counts_sorted, safe=False)
 
 
+
 @api_view(['GET'])
 def getUniqueVisitorsPerCountry(request):
 
     dateOfStart = datetime.datetime(2022,1,1)
+    
 
     print(dateOfStart)
 
@@ -874,6 +923,50 @@ def getUniqueVisitorsPerCountry(request):
     base64_list_foreign_country_counts_sorted = generate_base64_image(sorted_and_trimed_countries, "Visiteurs Uniques Provenant de l'Etranger")
 
     return JsonResponse([ sorted_list_foreign_country_counts , base64_list_foreign_country_counts_sorted , base64_list_mauritania_abroad_counts ], safe=False)
+
+
+
+@api_view(['GET'])
+def getUniqueVisitorsPerCountryDuringLast24Hours(request):
+
+    #dateOfStart = datetime.datetime(2022,1,1)
+
+    dateOfStart = datetime.datetime.now() - datetime.timedelta(days=1)   
+    
+
+    print(dateOfStart)
+
+    cursor = statistics.aggregate([
+
+        {
+            "$match": {  "page" : "map"  , "visitDate" : {"$gte": dateOfStart}}
+        },
+        {
+            "$group": { "_id" : {"country" : "$country" }, "id": { "$addToSet": "$id"} }
+        }, 
+        {
+            "$unwind":"$id"
+        },
+        {
+            "$group": { "_id": "$_id", "idCount": { "$sum":1} }
+        }
+
+    ])
+
+    countries = {}
+
+    for doc in cursor:
+        retour = json.dumps(doc, default=str)
+        item = json.loads(retour)
+        
+        country = item['_id']['country']
+        my_count = item['idCount']
+
+        countries[country] = my_count
+    
+    sorted_countries= dict(sorted(countries.items(), key=lambda item: item[1] ,  reverse=True)) 
+ 
+    return JsonResponse([ sorted_countries ], safe=False)
 
 
 @api_view(['GET'])
@@ -1087,6 +1180,8 @@ def generate_base64_image(stats, title):
     """     x.insert(0, "Total")
     y.insert(0 , total ) """
 
+
+    plt.subplots(figsize=(4, 4), dpi=100, tight_layout=True)
     plt.bar( x , y ,  color = "purple")
 
 
@@ -1112,6 +1207,8 @@ def generate_base64_image(stats, title):
     
     uniqueId = str(round(time.time() * 1000)) + "_"+str(random.randint(1, 10000))
     file = "./uploads/"+uniqueId+".png"
+
+    plt.subplots_adjust(left=0.1, right=0.9, top=0.9, bottom=0.1)
 
     plt.savefig(file)
 
@@ -1140,3 +1237,18 @@ def generate_base64_image(stats, title):
 
 
 # make api about countries regions and cities
+
+""" db.statistics.aggregate([
+  {
+    $group: {
+      _id: "$country",
+      count: { $sum: 1 }
+    }
+  },
+  {
+    $group: {
+      _id: null,
+      unique_count: { $sum: 1 }
+    }
+  }
+]) """
