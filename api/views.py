@@ -8,6 +8,10 @@ from django.http.response import JsonResponse
 from rest_framework.parsers import JSONParser
 from rest_framework import status
 
+ 
+from PIL import Image
+import math
+
 from api.decorators   import auth_required
 #from PyPDF2 import PdfFileReader, PdfFileWriter
 
@@ -357,6 +361,16 @@ def getVisistsCountLast24Hours(request):
     return JsonResponse({"uniqueVisitors": counter}, safe=False)
 
 
+@api_view(['GET'])
+def getVisitsCountLast365Hours(request):
+
+    print("inside getVisitsCountLast365Hours")
+
+    last365Hours = datetime.datetime.now() - datetime.timedelta(days=365)       
+    cursor = statistics.find({"page": "map" , "visitDate": {  "$gte":  last365Hours}}   )
+    counter = len(list(cursor))
+    return JsonResponse({"visitsCount": counter}, safe=False)
+
 
 
 @api_view(['GET'])
@@ -647,10 +661,13 @@ def sort_months(json):
     except KeyError:
         return 0
 
-@api_view(['GET'])
+@api_view(['POST'])
 def getUniqueVisitorsPerMonth(request):
 
-    print("inside")
+    print("-------------->")
+    input = JSONParser().parse(request)
+    rotate = input['isMobile']
+ 
     dateOfStart = datetime.datetime(2022,1,1)
     cursor = statistics.aggregate([
 
@@ -684,14 +701,19 @@ def getUniqueVisitorsPerMonth(request):
 
     #list_months_counts_sorted = sorted(list_months_counts, key=lambda k: k['month'], reverse=False)
     list_months_counts_sorted = dict(sorted(list_months_counts.items(), key=lambda item: item[0] ,  reverse=False))
-    base64_list_months_counts_sorted = generate_base64_image(list_months_counts_sorted , "Visiteurs Uniques par Mois")
+    base64_list_months_counts_sorted = generate_base64_image(list_months_counts_sorted , "Visiteurs Uniques par Mois" , rotate)
     return JsonResponse([base64_list_months_counts_sorted], safe=False)
 
 
-@api_view(['GET'])
+@api_view(['POST'])
 def getUniqueVisitorsPerOs(request):
 
-    dateOfStart = datetime.datetime(2022,1,1)
+    input = JSONParser().parse(request)
+    rotate = input['isMobile']
+
+    dateOfStart = datetime.datetime.now() - datetime.timedelta(days=365) 
+
+    #dateOfStart = datetime.datetime(2022,1,1)
     cursor = statistics.aggregate([
 
     {
@@ -721,14 +743,19 @@ def getUniqueVisitorsPerOs(request):
 
     #list_months_counts_sorted = sorted(list_months_counts, key=lambda k: k['month'], reverse=False)
     list_os_counts_sorted = dict(sorted(list_os_counts.items(), key=lambda item: item[1] ,  reverse=True))
-    base64_list_os_counts_sorted = generate_base64_image(list_os_counts_sorted , "Visiteurs Uniques par Systèmes d'Exploitation")
+    base64_list_os_counts_sorted = generate_base64_image(list_os_counts_sorted , "Visiteurs Uniques par Systèmes d'Exploitation durant les derniers 365 jours", rotate)
     return JsonResponse([base64_list_os_counts_sorted], safe=False)
 
 
-@api_view(['GET'])
+@api_view(['POST'])
 def getUniqueVisitorsPerDevice(request):
 
-    dateOfStart = datetime.datetime(2022,1,1)
+    input = JSONParser().parse(request)
+    rotate = input['isMobile']
+
+    #dateOfStart = datetime.datetime(2022,1,1)
+
+    dateOfStart = datetime.datetime.now() - datetime.timedelta(days=365) 
     cursor = statistics.aggregate([
 
     {
@@ -758,11 +785,8 @@ def getUniqueVisitorsPerDevice(request):
 
     #list_months_counts_sorted = sorted(list_months_counts, key=lambda k: k['month'], reverse=False)
     list_device_counts_sorted = dict(sorted(list_device_counts.items(), key=lambda item: item[1] ,  reverse=True))
-    base64_list_device_counts_sorted = generate_base64_image(list_device_counts_sorted , "Visiteurs Uniques Par Appareil")
+    base64_list_device_counts_sorted = generate_base64_image(list_device_counts_sorted , "Visiteurs Uniques Par Appareil durant les derniers 365 jours" , rotate)
     return JsonResponse([base64_list_device_counts_sorted], safe=False)
-
-
- 
 
 
 @api_view(['POST'])
@@ -771,6 +795,54 @@ def getUniqueVisitorsPerCity(request):
     input = JSONParser().parse(request)
 
     dateOfStart = datetime.datetime(2022,1,1)
+
+    #dateOfStart = datetime.datetime.now() - datetime.timedelta(days=1)   
+
+
+    cursor = statistics.aggregate([
+ 
+        {
+            "$match": {  "page" : "map" , "country": input['country'] , "region": input['region']  , "visitDate" : {"$gte": dateOfStart}}
+        },
+        {
+            "$group": { "_id" : {"city" : "$city" }, "id": { "$addToSet": "$id"} }
+        }, 
+        {
+            "$unwind":"$id"
+        },
+        {
+            "$group": { "_id": "$_id", "idCount": { "$sum":1} }
+        }
+
+    ])
+
+    list_cities_counts = {}
+ 
+
+    for doc in cursor:
+        retour = json.dumps(doc, default=str)
+        item = json.loads(retour)
+        
+        city = item['_id']['city']
+        my_count = item['idCount']
+
+        list_cities_counts[city] = my_count
+
+
+    list_cities_counts_sorted = dict(sorted(list_cities_counts.items(), key=lambda item: item[1] ,  reverse=True))
+
+    return JsonResponse(list_cities_counts_sorted, safe=False)
+ 
+
+
+@api_view(['POST'])
+def getUniqueVisitorsPerCityForLast24Hours(request):
+
+    input = JSONParser().parse(request)
+
+    #dateOfStart = datetime.datetime(2022,1,1)
+
+    dateOfStart = datetime.datetime.now() - datetime.timedelta(days=1)   
 
 
     cursor = statistics.aggregate([
@@ -853,11 +925,61 @@ def getUniqueVisitorsPerRegion(request):
 
 
 
-@api_view(['GET'])
+@api_view(['POST'])
+def getUniqueVisitorsPerRegionForLast24Hours(request):
+
+    print('inside etUniqueVisitorsPerRegionForLast24Hours')
+    input = JSONParser().parse(request)
+
+    #dateOfStart = datetime.datetime(2022,1,1) 
+
+    dateOfStart = datetime.datetime.now() - datetime.timedelta(days=1)   
+
+    cursor = statistics.aggregate([
+ 
+        {
+            "$match": {  "page" : "map" , "country": input['country']  , "visitDate" : {"$gte": dateOfStart}}
+        },
+        {
+            "$group": { "_id" : {"region" : "$region" }, "id": { "$addToSet": "$id"} }
+        }, 
+        {
+            "$unwind":"$id"
+        },
+        {
+            "$group": { "_id": "$_id", "idCount": { "$sum":1} }
+        }
+
+    ])
+
+    list_regions_counts = {}
+ 
+
+    for doc in cursor:
+        retour = json.dumps(doc, default=str)
+        item = json.loads(retour)
+        
+        region = item['_id']['region']
+        my_count = item['idCount']
+
+        list_regions_counts[region] = my_count
+
+
+    list_regions_counts_sorted = dict(sorted(list_regions_counts.items(), key=lambda item: item[1] ,  reverse=True))
+
+    return JsonResponse(list_regions_counts_sorted, safe=False)
+
+
+
+@api_view(['POST'])
 def getUniqueVisitorsPerCountry(request):
 
+    input = JSONParser().parse(request)
+    rotate = input['isMobile']
+
     dateOfStart = datetime.datetime(2022,1,1)
-    
+
+    #dateOfStart = datetime.datetime.now() - datetime.timedelta(days=365) 
 
     print(dateOfStart)
 
@@ -907,7 +1029,7 @@ def getUniqueVisitorsPerCountry(request):
     list_mauritania_abroad_counts["404"] = the_404_count
 
     
-    base64_list_mauritania_abroad_counts = generate_base64_image(list_mauritania_abroad_counts, "Visiteurs Uniques Provenant de la Mauritanie et de l'Etranger")
+    base64_list_mauritania_abroad_counts = generate_base64_image(list_mauritania_abroad_counts, "Visiteurs Uniques Provenant de la Mauritanie et de l'Etranger ", rotate)
     
 
     #list_foreign_country_counts_sorted = dict(sorted(list_foreign_country_counts.items(), key=lambda item: item[1] ,  reverse=True))
@@ -920,7 +1042,7 @@ def getUniqueVisitorsPerCountry(request):
 
     
 
-    base64_list_foreign_country_counts_sorted = generate_base64_image(sorted_and_trimed_countries, "Visiteurs Uniques Provenant de l'Etranger")
+    base64_list_foreign_country_counts_sorted = generate_base64_image(sorted_and_trimed_countries, "Visiteurs Uniques Provenant de l'Etranger ", rotate)
 
     return JsonResponse([ sorted_list_foreign_country_counts , base64_list_foreign_country_counts_sorted , base64_list_mauritania_abroad_counts ], safe=False)
 
@@ -972,6 +1094,8 @@ def getUniqueVisitorsPerCountryDuringLast24Hours(request):
 @api_view(['GET'])
 def getGraphs(request):
 
+    input = JSONParser().parse(request)
+    print("------------------------------>isMobile"+ input['isMobile'])
     cursor = statistics.aggregate([
         {
             "$group": {
@@ -1027,21 +1151,21 @@ def getGraphs(request):
 
  
     sorted_mauritania_other_404 = dict(sorted(mauritania_other_404.items(), key=lambda item: item[1] ,  reverse=True)) 
-    base64_string_mauritania_other_404 = generate_base64_image(sorted_mauritania_other_404 , "Visiteurs Uniques provenant de la Mauritanie et de l'étranger" )
+    base64_string_mauritania_other_404 = generate_base64_image(sorted_mauritania_other_404 , "Visiteurs Uniques provenant de la Mauritanie et de l'étranger", False )
 
     sorted_and_trimed_countries = sort_and_trim_countries(countries )
-    base64_string_countries = generate_base64_image(sorted_and_trimed_countries , "Visiteurs uniques par pays étranger")
+    base64_string_countries = generate_base64_image(sorted_and_trimed_countries , "Visiteurs uniques par pays étranger", False)
 
     sorted_dates = sort_dates_keys(dates)
-    base64_string_dates = generate_base64_image(sorted_dates , "Visiteurs uniques par mois ayant visité l'application pour la première fois")
+    base64_string_dates = generate_base64_image(sorted_dates , "Visiteurs uniques par mois ayant visité l'application pour la première fois", False)
 
 
     sorted_devices = dict(sorted(devices.items(), key=lambda item: item[1] ,  reverse=True)) 
-    base64_string_devices = generate_base64_image(sorted_devices , "Visiteurs uniques par appareil")
+    base64_string_devices = generate_base64_image(sorted_devices , "Visiteurs uniques par appareil", False)
 
 
     sorted_opearting_systems = dict(sorted(opearting_systems.items(), key=lambda item: item[1] ,  reverse=True))
-    base64_string_opearting_systems = generate_base64_image(sorted_opearting_systems , "Visiteurs uniques par systèmes d'exploitation")
+    base64_string_opearting_systems = generate_base64_image(sorted_opearting_systems , "Visiteurs uniques par systèmes d'exploitation", False)
 
     
     #print(devices)   
@@ -1170,10 +1294,10 @@ def populate_dates(visitDate , dates):
                 dates[date] = 1
 
 
-def generate_base64_image(stats, title):
+def generate_base64_image(stats, title , rotate):
 
-    x = list(stats.keys()) 
-    y = list(stats.values()) 
+    x = list(stats.keys())
+    y = list(stats.values())
 
     total = sum(y)
 
@@ -1212,6 +1336,19 @@ def generate_base64_image(stats, title):
 
     plt.savefig(file)
 
+
+    if rotate:
+        image = Image.open(file)
+        rotated_image = rotate_image(image, 270)
+        rotated_image.save("./uploads/"+uniqueId+".png")
+
+
+    """ image = Image.open(file)
+    rotated_image = image.rotate(90)
+    rotated_image.save(file) """
+   
+
+
     with open(file, 'rb') as open_file:
         byte_content = open_file.read()
 
@@ -1223,6 +1360,7 @@ def generate_base64_image(stats, title):
         # result: string (in utf-8)
     base64_string = base64_bytes.decode('utf-8')
     os.remove(file)
+    
     """ if os.path.exists(file):
         print("The file does exist")
         os.remove(file)
@@ -1236,6 +1374,49 @@ def generate_base64_image(stats, title):
     return base64_string
 
 
+
+
+
+def rotate_image(image, angle):
+    """
+    Rotates the given PIL Image object by the given angle without cropping sides.
+    
+    Args:
+        image: The PIL Image object to rotate.
+        angle: The angle to rotate the image by, in degrees.
+        
+    Returns:
+        A new PIL Image object representing the rotated image.
+    """
+
+
+    if angle == 90:
+        return image.transpose(Image.ROTATE_90)
+    elif angle == 180:
+        return image.transpose(Image.ROTATE_180)
+    elif angle == 270:
+        return image.transpose(Image.ROTATE_270)
+    else:
+        return image.rotate(angle, expand=True)
+
+
+    # Convert the angle to radians
+    radians = math.radians(angle)
+    
+    # Calculate the size of the rotated image
+    width, height = image.size
+    new_width = int(abs(width * math.cos(radians)) + abs(height * math.sin(radians)))
+    new_height = int(abs(height * math.cos(radians)) + abs(width * math.sin(radians)))
+    
+    # Create a new image with the correct size and fill it with a white background
+    new_image = Image.new('RGB', (new_width, new_height), (255, 255, 255))
+    
+    # Paste the rotated image onto the new image
+    x_offset = (new_width - width) // 2
+    y_offset = (new_height - height) // 2
+    new_image.paste(image.rotate(angle, expand=True), (x_offset, y_offset))
+    
+    return new_image
 # make api about countries regions and cities
 
 """ db.statistics.aggregate([

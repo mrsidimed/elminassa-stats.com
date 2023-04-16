@@ -43,12 +43,19 @@ urlpatterns = [
     re_path(r'^api/getUniqueVisitorsPerOs$', views.getUniqueVisitorsPerOs ),
     re_path(r'^api/getUniqueVisitorsPerDevice$', views.getUniqueVisitorsPerDevice ),
     re_path(r'^api/getUniqueVisitorsPerCountry$', views.getUniqueVisitorsPerCountry ),
+
     re_path(r'^api/getUniqueVisitorsPerRegion$', views.getUniqueVisitorsPerRegion ),
+    re_path(r'^api/getUniqueVisitorsPerRegionForLast24Hours$', views.getUniqueVisitorsPerRegionForLast24Hours ),
+
+    
     re_path(r'^api/getUniqueVisitorsPerCity$', views.getUniqueVisitorsPerCity ),
+    re_path(r'^api/getUniqueVisitorsPerCityForLast24Hours$', views.getUniqueVisitorsPerCityForLast24Hours ),
     re_path(r'^api/getUniqueVisitorsPerCountryDuringLast24Hours$', views.getUniqueVisitorsPerCountryDuringLast24Hours ),
 
     re_path(r'^api/getAllCountriesThatvisitedForFirstTimeInLastMonth$', views.getAllCountriesThatvisitedForFirstTimeInLastMonth ),
     re_path(r'^api/getUniqueVisitorsOfLast365Days$', views.getUniqueVisitorsOfLast365Days ),
+    re_path(r'^api/getVisitsCountLast365Hours$', views.getVisitsCountLast365Hours ),
+
 
 
 
