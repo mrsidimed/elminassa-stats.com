@@ -60,6 +60,18 @@ urlpatterns = [
 
 
 
+    
+    re_path(r'^api/getValidated$', views.getValidated ),
+    re_path(r'^api/getPaid$', views.getPaid),
+    re_path(r'^api/getgeneratedNni$', views.getgeneratedNni),
+    re_path(r'^api/nouvellesdemandes$', views.nouvellesdemandes ),
+
+
+
+
+
+
+
 
 
 

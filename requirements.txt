@@ -1,5 +1,6 @@
 asgiref==3.5.2
-backports.zoneinfo==0.2.1
+# backports.zoneinfo==0.2.1
+backports.zoneinfo;python_version<"3.9"
 boto3==1.23.10
 botocore==1.26.10
 cycler==0.11.0
